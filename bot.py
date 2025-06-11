@@ -1,4 +1,4 @@
-import asyncio
+
 import os
 import logging
 import sqlite3
@@ -12,6 +12,7 @@ from datetime import datetime
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
+
 
 
 class LegalBot:
@@ -31,7 +32,8 @@ class LegalBot:
         )
         self.logger = logging.getLogger(__name__)
 
-    def _init_openai_client(self):
+    @staticmethod
+    def _init_openai_client():
         return openai.AsyncOpenAI(
             api_key=os.getenv('OPENAI_API_KEY'),
             http_client=httpx.AsyncClient(
@@ -70,14 +72,41 @@ class LegalBot:
     async def _send_welcome(self, message: types.Message):
         welcome_text = """
         👋 Добро пожаловать в *Юрист GPT*!
-        Я - ваш виртуальный юридический помощник.
+
+        Я - ваш виртуальный юридический помощник. Задайте мне любой юридический вопрос, и я постараюсь помочь.
+
+        Примеры вопросов:
+        - Как составить договор аренды?
+        - Какие документы нужны для развода?
+        - Что делать при незаконном увольнении?
+
+    ⚠️ *Важно*: мои ответы носят информационный характер и не заменяют консультацию живого юриста.
         """
         await message.reply(welcome_text)
         await message.reply('Выберите категорию:', reply_markup=self._get_main_keyboard())
 
-    async def _send_help(self, message: types.Message):
-        help_text = "📝 *Как пользоваться ботом:*\nПросто напишите ваш юридический вопрос..."
+    @staticmethod
+    async def _send_help(message: types.Message):
+        help_text = """
+        📝 *Как пользоваться ботом:*
+
+        Просто напишите ваш юридический вопрос, и я постараюсь помочь.
+
+        Некоторые примеры вопросов:
+        - Как подать в суд на работодателя?
+        - Какие права у арендатора квартиры?
+        - Как оформить наследство?
+
+        ⚠️ *Ограничения:*
+        - Я не могу представлять вас в суде
+        - Мои ответы носят справочный характер
+        - Для сложных случаев рекомендую обратиться к живому юристу
+
+        Используйте /start для повторного приветствия.
+        """
         await message.reply(help_text)
+
+
 
     async def _handle_message(self, message: types.Message):
         await self.generate_and_save_response(
@@ -121,7 +150,8 @@ class LegalBot:
         conn.close()
         await self.bot.answer_callback_query(callback_query.id, 'История диалога очищена')
 
-    def _get_main_keyboard(self):
+    @staticmethod
+    def _get_main_keyboard():
         # Реализация клавиатуры
         return InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="Трудовое право", callback_data="law_labor")],
@@ -169,11 +199,10 @@ class LegalBot:
 
     async def _call_gpt_api(self, messages: list, is_regenerate: bool = False):
         return await self.client.chat.completions.create(
-            model="gpt-4-turbo-preview",
+            model="gpt-4o-mini",
             messages=messages,
             temperature=0.9 if is_regenerate else 0.7,
             max_tokens=800,
-            timeout=20.0
         )
 
     async def _send_response(self, chat_id: int, text: str, message_id: int = None):
@@ -196,7 +225,8 @@ class LegalBot:
                 reply_markup=keyboard
             )
 
-    def save_message(self, user_id: int, messages: list):
+    @staticmethod
+    def save_message(user_id: int, messages: list):
         conn = sqlite3.connect('chat_history.db')
         cursor = conn.cursor()
         for message in messages:
@@ -207,7 +237,8 @@ class LegalBot:
         conn.commit()
         conn.close()
 
-    def get_conversation_history(self, user_id: int, limit: int = 10) -> list:
+    @staticmethod
+    def get_conversation_history(user_id: int, limit: int = 10) -> list:
         conn = sqlite3.connect('chat_history.db')
         cursor = conn.cursor()
         cursor.execute(
@@ -218,28 +249,8 @@ class LegalBot:
         conn.close()
         return history[::-1]
 
-    @staticmethod
-    def init_db():
-        conn = sqlite3.connect('chat_history.db')
-        conn.execute('''
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            role TEXT NOT NULL,
-            content TEXT NOT NULL,
-            timestamp DATETIME NOT NULL
-        )
-        ''')
-        conn.commit()
-        conn.close()
-
     async def run(self):
-        self.init_db()
         await self.bot.delete_webhook(drop_pending_updates=True)
         await self.dp.start_polling(self.bot)
 
 
-if __name__ == '__main__':
-    LegalBot.init_db()
-    bot = LegalBot()
-    asyncio.run(bot.run())
