@@ -1,4 +1,3 @@
-
 import os
 import logging
 import sqlite3
@@ -12,6 +11,7 @@ from datetime import datetime
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
+from keyboards import main_keyboard
 
 
 
@@ -37,7 +37,7 @@ class LegalBot:
         return openai.AsyncOpenAI(
             api_key=os.getenv('OPENAI_API_KEY'),
             http_client=httpx.AsyncClient(
-                proxy=os.getenv('PROXY_URL', None),
+                # proxy=os.getenv('PROXY_URL', None),
                 timeout=30.0
             )
         )
@@ -69,7 +69,8 @@ class LegalBot:
             self._handle_law_question)
         self.dp.callback_query(lambda c: c.data == 'clear_history')(self._clear_history)
 
-    async def _send_welcome(self, message: types.Message):
+    @staticmethod
+    async def _send_welcome(message: types.Message):
         welcome_text = """
         👋 Добро пожаловать в *Юрист GPT*!
 
@@ -83,7 +84,7 @@ class LegalBot:
     ⚠️ *Важно*: мои ответы носят информационный характер и не заменяют консультацию живого юриста.
         """
         await message.reply(welcome_text)
-        await message.reply('Выберите категорию:', reply_markup=self._get_main_keyboard())
+        await message.reply('Выберите категорию:', reply_markup=main_keyboard)
 
     @staticmethod
     async def _send_help(message: types.Message):
@@ -150,13 +151,6 @@ class LegalBot:
         conn.close()
         await self.bot.answer_callback_query(callback_query.id, 'История диалога очищена')
 
-    @staticmethod
-    def _get_main_keyboard():
-        # Реализация клавиатуры
-        return InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Трудовое право", callback_data="law_labor")],
-            [InlineKeyboardButton(text="Жилищное право", callback_data="law_housing")]
-        ])
 
     async def generate_and_save_response(self, user_id: int, chat_id: int, user_message: str,
                                          reply_to_message_id: int = None, is_regenerate: bool = False,
